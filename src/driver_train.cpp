@@ -228,11 +228,12 @@ int main(int argc, char** argv)
     string train_file = "train_25x1top5_commondep_liblinear"; 
     string test_file = "test_1to25_fakelabel_raw.dat";
     for (auto agentNum : num_agents_to_train) {
-        bool useLIBLINEAR = true; //if false then use SVM-Rank
+        bool useLIBLINEAR = false; //if false then use SVM-Rank
         bool generateTestFile = false && (!useLIBLINEAR); //if using LIBLINEAR, then assume generating train file
         bool solvePPforTestFile = false;
         int curriculum_learning_numagent = -1; //-1 for no curr learning, otherwise will do curr learning
         int total_scenarios = 25;
+        // TODO make this changable
         int instances_per_scen = (useLIBLINEAR || generateTestFile)? 1 : 100; //100: 99 for train, 1 for test
         int qid = 0;
         
@@ -317,7 +318,7 @@ int main(int argc, char** argv)
                     out_fname = train_out_fname;
                 }
 
-                int pp_runs = 100; // number of runs for PP. Should be 100 for training data
+                int pp_runs = 100; // number of runs for PP. Should be 100 for training data // TODO make this changable
                 srand((int)time(0));
                 // Instance instance(vm["map"].as<string>(), scenario_fname, first_agents,
                 //     vm["agentNum"].as<int>());
