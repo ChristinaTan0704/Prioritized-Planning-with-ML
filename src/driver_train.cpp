@@ -17,6 +17,7 @@
 #include "MLFeatures.h"
 #include "solvePP.h"
 #include "SVMRankAPI.h"
+#include "CBS.h"
 
 bool runEECBS(const boost::program_options::variables_map& vm, Instance& instance)
 {
@@ -186,9 +187,9 @@ int main(int argc, char** argv)
 		("help", "produce help message")
 
 		// params for the input instance and experiment settings
-		("map,m", po::value<string>()->required(), "input file for map")
-		("agents,a", po::value<string>()->required(), "input file for agents")
-		("agentNum,k", po::value<int>()->default_value(0), "number of agents")
+		("map,m", po::value<string>()->default_value("map/scen-even/warehouse-20-40-10-2-2.map"), "input file for map")
+		("agents,a", po::value<string>()->default_value("map/scen-even/warehouse-20-40-10-2-2-even-1.scen"), "input file for agents")
+		("agentNum,k", po::value<int>()->default_value(50), "number of agents")
 		("screen,s", po::value<int>()->default_value(1), "screen option (0: none; 1: results; 2:all)")
         ("solver", po::value<string>()->default_value("PP"), "MAPF solver (EECBS, PP)")
 

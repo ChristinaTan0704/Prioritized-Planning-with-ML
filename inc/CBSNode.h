@@ -214,7 +214,7 @@ struct ConstraintsHasher // Hash a CT node by constraints on one agent
 				curr = curr->parent;
 			}
 
-			return equal(cons1.begin(), cons1.end(), cons2.begin(), cons2.end());
+			return equal(cons1.begin(), cons1.end(), cons2.begin());// , cons2.end()
 		}
 	};
 

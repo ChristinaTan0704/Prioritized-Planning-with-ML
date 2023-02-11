@@ -1,7 +1,7 @@
 #pragma once
 #include "CBS.h"
 #include "ECBSNode.h"
-
+#include "ECBS.h"
 
 class ECBS : public CBS
 {
