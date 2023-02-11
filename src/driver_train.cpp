@@ -229,10 +229,10 @@ int main(int argc, char** argv)
     string test_file = "test_1to25_fakelabel_raw.dat";
     for (auto agentNum : num_agents_to_train) {
         bool useLIBLINEAR = false; //if false then use SVM-Rank
-        bool generateTestFile = false && (!useLIBLINEAR); //if using LIBLINEAR, then assume generating train file
+        bool generateTestFile = true && (!useLIBLINEAR); //if using LIBLINEAR, then assume generating train file
         bool solvePPforTestFile = false;
         int curriculum_learning_numagent = -1; //-1 for no curr learning, otherwise will do curr learning
-        int total_scenarios = 25;
+        int total_scenarios = 1; // TODO change back to 25
         // TODO make this changable
         int instances_per_scen = (useLIBLINEAR || generateTestFile)? 1 : 100; //100: 99 for train, 1 for test
         int qid = 0;
