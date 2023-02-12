@@ -1,15 +1,21 @@
 #include "MLFeatures.h"
 #include "common.h"
+#include "Instance.h"
 
 void MLFeatures::generateFeatureVec(MLFeaturesInstance& instance_features, MLFeaturesAgent& agent_features, vector<double>& vec)
 {
 	assert(vec.size() == 0);
 
-	vec.reserve(29); //29 features in total = 26 agent features + 3 map features
+	vec.reserve(33); //29 features in total = 26 agent features + 3 map features
+//    vec.reserve(29);
 	vector<double> instance_features_vec = instance_features.getAllFeatures();
 	vector<double> agent_feature_vec = agent_features.getAllFeatures();
 	vec.insert(vec.end(), instance_features_vec.begin(), instance_features_vec.end());
 	vec.insert(vec.end(), agent_feature_vec.begin(), agent_feature_vec.end());
+    vec.push_back(instance_features.instance.getRowCoordinate((agent_features.agent.start_location))); // agent_features.agent.goal_location)
+    vec.push_back(instance_features.instance.getColCoordinate((agent_features.agent.start_location))); // agent_features.agent.goal_location)
+    vec.push_back(instance_features.instance.getRowCoordinate((agent_features.agent.goal_location))); // agent_features.agent.goal_location)
+    vec.push_back(instance_features.instance.getColCoordinate((agent_features.agent.goal_location))); // agent_features.agent.goal_location)
 }
 
 void MLFeatures::printSolutionHeader(ofstream& ofs, vector<int>& best_priority_ordering, int best_cost, double best_runtime) {
@@ -41,9 +47,11 @@ void MLFeatures::printFormattedFeatures(int rank, int qid, ofstream& ofs, vector
 	24: num_other_mdds_on_start
 	25-26: num_edge_conflicts -- by pair of agent, by raw num of conflits
 	27-28: num_cardinal_conflicts -- by pair of agent, by raw num of conflits
+    29~33: start (x.y) + goal (x.y)
 	*/
 
 	ofs << rank << " qid:" << qid;
+//    ofs << "start:" <<  map_features.instance.getRowCoordinate(start) <<" " << map_features.instance.getColCoordinate(start) << "goal:"  << map_features.instance.getRowCoordinate(goal) <<" " << map_features.instance.getColCoordinate(goal) ;
 	for (int i = 0; i < feature_vec.size(); i++) {
 		ofs << " " << i+1 << ":" << feature_vec[i];
 	}

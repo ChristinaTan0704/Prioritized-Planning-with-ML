@@ -24,9 +24,10 @@ public:
 	unordered_map<int, int> agent_vertexConf_byconf;
 	unordered_map<int, int> agent_edgeConf_byconf;
 	unordered_map<int, int> agent_cardinalConf_byconf;
+    Instance& instance;
 
 private: 
-	Instance& instance;
+
 	PP& pp;
 	int num_agents;
 	double obstacle_density;

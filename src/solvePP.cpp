@@ -410,7 +410,6 @@ void solvePPSVMRank(std::ofstream& ofs, Instance& instance, int pp_screen, vecto
                 all_costs[i].push_back(best_costs_self / (double)sum_of_start_goal_dist);
             }
             else {
-                //all_costs[i][scen] = sum_of_costs;
                 all_costs[i].push_back(best_costs_self);
             }
             if (first_costs_self < MAX_COST && fixedtime_restart) {
@@ -518,7 +517,7 @@ void genSVMRankRawFeatureFile(Instance& instance, PP& pp, ofstream& ofs,
         MLFeaturesAgent ml_features_agent(instance, best_priority_ordering[i], pp, ml_features_instance);
         vector<double> feature_vec;
         ml_features.generateFeatureVec(ml_features_instance, ml_features_agent, feature_vec);
-        ml_features.printFormattedFeatures(i, qid, ofs, feature_vec);
+        ml_features.printFormattedFeatures(i, qid, ofs, feature_vec); //, ml_features_agent.agent.start_location, ml_features_agent.agent.goal_location
     }
     ofs.close();
 }

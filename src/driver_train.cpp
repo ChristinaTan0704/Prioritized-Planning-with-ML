@@ -192,6 +192,9 @@ int main(int argc, char** argv)
 		("agentNum,k", po::value<int>()->default_value(50), "number of agents")
 		("screen,s", po::value<int>()->default_value(1), "screen option (0: none; 1: results; 2:all)")
         ("solver", po::value<string>()->default_value("PP"), "MAPF solver (EECBS, PP)")
+        ("sid", po::value<int>()->default_value(1), "index of senario 0 ~ 25)")
+        ("insNum", po::value<int>()->default_value(3), "number of instance to be generated") // TODO change to 1000
+        ("ppRun", po::value<int>()->default_value(2), "number of runs to do PP") // TODO change to 100
 
 		// params for EECBS
 		("cutoffTime,t", po::value<double>()->default_value(7200), "cutoff time (seconds)")
@@ -221,23 +224,37 @@ int main(int argc, char** argv)
 
 	po::notify(vm);
 
+    string map_name = Split(vm["map"].as<string>(), '/').back();
+    map_name = map_name.substr(0, map_name.size() - 4); //4 is the len of '.map'
+    string scenario_file = vm["agents"].as<string>();
+    string scen_sub = scenario_file.substr(0, scenario_file.size() - 6); //6 is the len of '1.scen'
+    string scen_postfix = ".scen";
+    int scen = vm["sid"].as<int>();
+
     // ========================================= CUSTOMIZE begin ========================================
     double test_feature_gen_runtime = 0.0;
     vector<int> num_agents_to_train = {vm["agentNum"].as<int>()}; //{50};
     //if SVMRank: "train_1to25_raw.dat"; LIBLINEAR: "train_25x1top5_commondep_liblinear"
-    string train_file = "train_25x1top5_commondep_liblinear"; 
-    string test_file = "test_1to25_fakelabel_raw.dat";
+    string train_file = "train_" + map_name + "_scen" + std::to_string(scen) + ".txt";
+    string test_file = "test_" + map_name + "_scen" + std::to_string(scen) + ".txt";
+
+    remove(train_file.c_str());
+    remove(("norm_" +train_file).c_str());
+    remove(("norm_group5_" +train_file).c_str());
+
+    remove(test_file.c_str());
+    remove(("norm_" +test_file).c_str());
+    remove(("norm_group5_" +test_file).c_str());
+
     for (auto agentNum : num_agents_to_train) {
         bool useLIBLINEAR = false; //if false then use SVM-Rank
-        bool generateTestFile = true && (!useLIBLINEAR); //if using LIBLINEAR, then assume generating train file
+        bool generateTestFile = false && (!useLIBLINEAR); //if using LIBLINEAR, then assume generating train file
         bool solvePPforTestFile = false;
         int curriculum_learning_numagent = -1; //-1 for no curr learning, otherwise will do curr learning
-        int total_scenarios = 1; // TODO change back to 25
-        // TODO make this changable
-        int instances_per_scen = (useLIBLINEAR || generateTestFile)? 1 : 100; //100: 99 for train, 1 for test
+        int instances_per_scen = (useLIBLINEAR || generateTestFile)? 1 : vm["insNum"].as<int>(); //100: 99 for train, 1 for test
         int qid = 0;
         
-            /* edit these if need to generate more agents than the map provides */
+        /* edit these if need to generate more agents than the map provides */
         bool generate_agents = false;
         bool save_agents = generate_agents && generateTestFile; //if generating test file, then need to save agents
 		int num_of_rows = 0;
@@ -245,31 +262,28 @@ int main(int argc, char** argv)
         int num_of_obstacles = 0;
         int warehouse_width = 0;
         // ========================================= CUSTOMIZE end ==========================================
-       
-        string map_name = Split(vm["map"].as<string>(), '/').back();
-        map_name = map_name.substr(0, map_name.size() - 4); //4 is the len of '.map'
-        string scenario_file = vm["agents"].as<string>();
-        string scen_sub = scenario_file.substr(0, scenario_file.size() - 6); //6 is the len of '1.scen'
-        string scen_postfix = ".scen";
-        
+
         string x64_level_path, repo_level_path;
         if (ONWINDOWS) {
 		    repo_level_path = "../../../../";
             x64_level_path = "../";
         }
         else if (ONLINUX) {
-		    repo_level_path = "../";
-            x64_level_path = "../out/build/x64-Release/";
+		    repo_level_path = "";
+            x64_level_path = "out/build/x64-Release/";
         }
         string out_path = x64_level_path + ((useLIBLINEAR || generateTestFile) ? "liblinear_files/" : "svm_rank_files/")
             + map_name + "/num_agent_";
         string currlearn_train_fpath = out_path + std::to_string(curriculum_learning_numagent) + "/";
         string currlearn_train_fname = currlearn_train_fpath 
-            + (useLIBLINEAR? "train_25x1top5_commondep_liblinear": "train_1to25_norm_group5.dat");
+            + (useLIBLINEAR? "train_25x1top5_commondep_liblinear": "norm_" + train_file);
 
         string train_out_fname = out_path + std::to_string(agentNum) + "/" + train_file;
         string test_out_fname = out_path + std::to_string(agentNum) + "/" + test_file;
         string liblinear_weights_fname = train_out_fname + "_weights";
+
+        string output_folder =  out_path + std::to_string(agentNum);
+        boost::filesystem::create_directories(output_folder);
 
         LiblinearAPI liblinear_api(repo_level_path + "liblinear_weights_windows/", currlearn_train_fname, "",
             curriculum_learning_numagent, currlearn_train_fname + "_weights");
@@ -278,104 +292,95 @@ int main(int argc, char** argv)
             curriculum_learning_numagent, "model_train" + std::to_string(curriculum_learning_numagent), 
             "prediction_train" + std::to_string(curriculum_learning_numagent) + "_test" + std::to_string(agentNum));
         bool LIBLINEAR_validation = false;
-        //remove(train_out_fname.c_str()); //if file already exists, remove file to start fresh
-        //remove(test_out_fname.c_str());
-        // remove(liblinear_weights_fname.c_str());
-        
-        //vm["solver"].as<string>(), total_scenarios, scenario_file, training or testing bool, 
-        int start_scen = 1;
-        for (int scen = start_scen; scen <= total_scenarios; scen++) { //generate training data
-            string scenario_fname = scen_sub + std::to_string(scen) + scen_postfix;
-            if(generate_agents && save_agents){
-                scenario_fname = scen_sub + "agents" + std::to_string(agentNum) +"-"+ std::to_string(scen) + scen_postfix;
-            }
-            cout << scenario_fname << endl; //for debug. delete later
 
-            //Run 100 instances from each scenario. last one for testing, all others for training
-            for (int inst = 0; inst < instances_per_scen; inst++) {
-                qid++;
-                // load the instance
-                bool first_agents; // true - read the first N start and goal locations from the file;
-                                // false - read random N start locations and random N goal locations from the file.
-                string out_fname;
-                if (inst == instances_per_scen - 1) { //last one for test file
-                    if (useLIBLINEAR) {
-                        //continue; //testing file is useless for liblinear
-                        //LIBLINEAR_validation = true;
-                        first_agents = false;
-                        out_fname = train_out_fname;
-                    }
-                    else {
-                        first_agents = true;
-                        out_fname = test_out_fname;
-                    }
+        
+
+        string scenario_fname = scen_sub + std::to_string(scen) + scen_postfix;
+        if(generate_agents && save_agents){
+            scenario_fname = scen_sub + "agents" + std::to_string(agentNum) +"-"+ std::to_string(scen) + scen_postfix;
+        }
+        cout << scenario_fname << endl; //for debug. delete later
+
+        // Run 100 instances from each scenario. last one for testing, all others for training
+        for (int inst = 0; inst < instances_per_scen; inst++) {
+            qid++;
+            // load the instance
+            bool first_agents; // true - read the first N start and goal locations from the file;
+                            // false - read random N start locations and random N goal locations from the file.
+            string out_fname;
+            if (inst == instances_per_scen - 1) { //last one for test file
+                if (useLIBLINEAR) {
+                    first_agents = false;
+                    out_fname = test_out_fname;
                 }
                 else {
-                    if (useLIBLINEAR) {
-                        LIBLINEAR_validation = false;
-                    }
-                    first_agents = false;
-                    out_fname = train_out_fname;
-                }
-
-                int pp_runs = 100; // number of runs for PP. Should be 100 for training data // TODO make this changable
-                srand((int)time(0));
-                // Instance instance(vm["map"].as<string>(), scenario_fname, first_agents,
-                //     vm["agentNum"].as<int>());
-                Instance instance(vm["map"].as<string>(), scenario_fname, first_agents, agentNum, 
-                    generate_agents, save_agents, num_of_rows, num_of_cols, 
-                    num_of_obstacles, warehouse_width);
-
-                // solve the instance
-                if (vm["solver"].as<string>() == "PP")
-                {
-                    std::ofstream ofs(out_fname, std::ios_base::app); //concatenate
-                    if (generateTestFile && !solvePPforTestFile) { //generate test file without solving PP (give dummy labels, only features matter)    
-                        genTestFileNoLabel(ofs, instance, vm["screen"].as<int>(), qid, test_feature_gen_runtime);
-                        continue;
-                    }
-                    if (useLIBLINEAR) { //get Liblinear training file
-                        std::ofstream weights_ofs(liblinear_weights_fname, std::ios_base::app); //concatenate
-                        if (curriculum_learning_numagent == -1) {
-                            LiblinearAPI dummy_api("", "", "", 0, "");
-                            solvePP(ofs, weights_ofs, instance, vm["screen"].as<int>(), pp_runs, scen, dummy_api, 
-                                qid, LIBLINEAR_validation, curriculum_learning_numagent);
-                        }
-                        else {
-                            solvePP(ofs, weights_ofs, instance, vm["screen"].as<int>(), pp_runs, scen, liblinear_api, 
-                                qid, LIBLINEAR_validation, curriculum_learning_numagent);
-                        }
-                    }
-                    else { //get SVMRank training file, or validation file "validation_1to25_norm.dat"
-                        solvePP(ofs, instance, vm["screen"].as<int>(), pp_runs, scen, false, qid, 
-                            curriculum_learning_numagent, svm_rank_api);
-
-                       
-                    }
-                }
-                else if (vm["solver"].as<string>() == "EECBS")
-                    runEECBS(vm, instance);
-                else
-                {
-                    cerr << "MAPF solver " << vm["solver"].as<string>() << "does not exist!" << endl;
-                    return -1;
+                    first_agents = true;
+                    out_fname = test_out_fname;
                 }
             }
+            else {
+                if (useLIBLINEAR) {
+                    LIBLINEAR_validation = false;
+                }
+                first_agents = false;
+                out_fname = train_out_fname;
+            }
+
+            int pp_runs = vm["ppRun"].as<int>(); // number of runs for PP. Should be 100 for training data
+            srand((int)time(0));
+            Instance instance(vm["map"].as<string>(), scenario_fname, first_agents, agentNum,
+                generate_agents, save_agents, num_of_rows, num_of_cols,
+                num_of_obstacles, warehouse_width);
+
+            // solve the instance
+            if (vm["solver"].as<string>() == "PP")
+            {
+                std::ofstream ofs(out_fname, std::ios_base::app); //concatenate
+                if (generateTestFile && !solvePPforTestFile) { //generate test file without solving PP (give dummy labels, only features matter)
+                    genTestFileNoLabel(ofs, instance, vm["screen"].as<int>(), qid, test_feature_gen_runtime);
+                    continue;
+                }
+                if (useLIBLINEAR) { //get Liblinear training file
+                    std::ofstream weights_ofs(liblinear_weights_fname, std::ios_base::app); //concatenate
+                    if (curriculum_learning_numagent == -1) {
+                        LiblinearAPI dummy_api("", "", "", 0, "");
+                        solvePP(ofs, weights_ofs, instance, vm["screen"].as<int>(), pp_runs, scen, dummy_api,
+                            qid, LIBLINEAR_validation, curriculum_learning_numagent);
+                    }
+                    else {
+                        solvePP(ofs, weights_ofs, instance, vm["screen"].as<int>(), pp_runs, scen, liblinear_api,
+                            qid, LIBLINEAR_validation, curriculum_learning_numagent);
+                    }
+                }
+                else { //get SVMRank training file, or validation file "validation_1to25_norm.dat"
+                    solvePP(ofs, instance, vm["screen"].as<int>(), pp_runs, scen, false, qid,
+                        curriculum_learning_numagent, svm_rank_api);
+                }
+            }
+            else if (vm["solver"].as<string>() == "EECBS")
+                runEECBS(vm, instance);
+            else
+            {
+                cerr << "MAPF solver " << vm["solver"].as<string>() << "does not exist!" << endl;
+                return -1;
+            }
         }
+
+        // ############# save result #############
         bool normalize_flag = true;
         bool group_ranking = true;
         if (normalize_flag) {
             SVMRankAPI svm_rank_api("", out_path + std::to_string(agentNum) + "/", "", "", agentNum,"","");
             if(!useLIBLINEAR && (!generateTestFile)){
-                svm_rank_api.rawToNormalized("train_1to25_raw.dat", "train_1to25_norm.dat");
+                svm_rank_api.rawToNormalized(train_file, "norm_" + train_file);
             }
             if(generateTestFile || (!useLIBLINEAR)){
-                svm_rank_api.rawToNormalized("test_1to25_fakelabel_raw.dat", "test_1to25_fakelabel_norm.dat");
+                svm_rank_api.rawToNormalized(test_file, "norm_" + test_file);
             }
         }
         if (group_ranking && (!useLIBLINEAR) && (!generateTestFile)) {
             SVMRankAPI svm_rank_api("", out_path + std::to_string(agentNum) + "/", "", "", agentNum, "", "");
-            svm_rank_api.groupRanking("train_1to25_norm.dat", "train_1to25_norm_group5.dat", 5);
+            svm_rank_api.groupRanking("norm_" + train_file, "norm_group5_" + train_file, 5);
             cout<<"group ranking done"<<endl;
         }
     }

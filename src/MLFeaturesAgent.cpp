@@ -189,9 +189,9 @@ void MLFeaturesAgent::computeOtherMDDsOnStart()
 void MLFeaturesAgent::computeAllFeatures()
 {
 	computeMDDWidth();
-	computeStartToOtherStarts();
-	computeGoalToOtherGoals();
-	computeStartGoalDistance();
+	computeStartToOtherStarts(); // 1
+	computeGoalToOtherGoals(); // 3
+	computeStartGoalDistance(); // 3
 	computeMDDRatio();
 	computeMDDIntersections();
 	computeSingletons();

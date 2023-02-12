@@ -25,12 +25,12 @@ public:
 	void computeEdgeConflicts();
 	void computeCardinalConflicts();
 	void printFeatures(); //for debugging
+    Agent& agent;
 
 private:
 	Instance& instance;
 	PP& pp;
 	MLFeaturesInstance& ml_features_instance;
-	Agent& agent;
 	int agent_id;
 	vector<int> priority_ordering;
 
