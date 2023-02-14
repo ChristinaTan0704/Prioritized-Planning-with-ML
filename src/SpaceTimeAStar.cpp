@@ -70,7 +70,7 @@ Path SpaceTimeAStar::findOptimalPath(PathTable& path_table, const vector<int>& h
                     next_timestep, curr->g_val + 1 + heuristics[next_location]))
                 continue;
 
-            // compute cost to next_id via curr node
+            // compute cost to next_id via curr node //TODO check if here is the same
             int next_g_val = curr->g_val + 1;
             int next_h_val = max(curr->getFVal() - next_g_val, heuristics[next_location]);
 

@@ -16,21 +16,6 @@ Instance::Instance(const string& map_fname, const string& agent_fname, bool firs
 		cerr << "Map file " << map_fname << " not found." << endl;
 		exit(-1);
 	}
-	/*if (!succ)
-	{
-		if (num_of_rows > 0 && num_of_cols > 0 && num_of_obstacles >= 0 && 
-			num_of_obstacles < num_of_rows * num_of_cols) // generate random grid
-		{
-			generateConnectedRandomGrid(num_of_rows, num_of_cols, num_of_obstacles);
-			saveMap();
-		}
-		else
-		{
-			cerr << "Map file " << map_fname << " not found." << endl;
-			exit(-1);
-		}
-	}*/
-
 	succ = loadAgents(first_agents);
 	if (!succ)
 	{
@@ -46,6 +31,20 @@ Instance::Instance(const string& map_fname, const string& agent_fname, bool firs
 			exit(-1);
 		}
 	}
+
+}
+
+void Instance::init_pp_starts_ends(const string &map, vector<int> starts, vector<int> ends) {
+    map_fname = map;
+    bool succ = loadMap();
+    if (!succ) {
+        cerr << "Map file " << map_fname << " not found." << endl;
+        exit(-1);
+    }
+
+    start_locations = starts;
+    goal_locations = ends;
+    num_of_agents = starts.size();
 
 }
 

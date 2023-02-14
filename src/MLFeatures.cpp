@@ -6,7 +6,7 @@ void MLFeatures::generateFeatureVec(MLFeaturesInstance& instance_features, MLFea
 {
 	assert(vec.size() == 0);
 
-	vec.reserve(33); //29 features in total = 26 agent features + 3 map features
+	vec.reserve(35); //29 features in total = 26 agent features + 3 map features
 //    vec.reserve(29);
 	vector<double> instance_features_vec = instance_features.getAllFeatures();
 	vector<double> agent_feature_vec = agent_features.getAllFeatures();
@@ -16,6 +16,8 @@ void MLFeatures::generateFeatureVec(MLFeaturesInstance& instance_features, MLFea
     vec.push_back(instance_features.instance.getColCoordinate((agent_features.agent.start_location))); // agent_features.agent.goal_location)
     vec.push_back(instance_features.instance.getRowCoordinate((agent_features.agent.goal_location))); // agent_features.agent.goal_location)
     vec.push_back(instance_features.instance.getColCoordinate((agent_features.agent.goal_location))); // agent_features.agent.goal_location)
+    vec.push_back(agent_features.agent.start_location);
+    vec.push_back(agent_features.agent.goal_location);
 }
 
 void MLFeatures::printSolutionHeader(ofstream& ofs, vector<int>& best_priority_ordering, int best_cost, double best_runtime) {

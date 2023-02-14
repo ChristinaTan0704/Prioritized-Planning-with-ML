@@ -37,6 +37,10 @@ void solvePP(std::ofstream& ofs, Instance& instance, int pp_screen,
 	int pp_runs, int& scen, bool is_test, int qid = 0, int curr_learning_numagent = -1,
 	boost::optional<SVMRankAPI&> svm_rank_api = boost::optional<SVMRankAPI&>()); //invoked by driver_train for SVMRank
 
+void solvePP_temp(std::ofstream& ofs, Instance& instance, int pp_screen,
+             int pp_runs, int& scen, bool is_test, int qid = 0, int curr_learning_numagent = -1,
+             boost::optional<SVMRankAPI&> svm_rank_api = boost::optional<SVMRankAPI&>(), vector<int> a={1});
+
 void solvePP(std::ofstream& ofs, std::ofstream& weights_ofs, Instance& instance, int pp_screen,
 	int pp_runs, int& scen, LiblinearAPI& liblinear_api, int qid = 0,  bool is_validation = false,
 	int curr_learning_numagent = -1); //invoked by driver_train for Liblinear

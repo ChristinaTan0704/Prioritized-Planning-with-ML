@@ -23,6 +23,7 @@ public:
 		int num_of_rows = 0, int num_of_cols = 0, int num_of_obstacles = 0, int warehouse_width = 0);
 
 
+	void init_pp_starts_ends(const string& map_fname, vector<int> starts, vector<int> ends);
 	void printAgents() const;
 
 
@@ -68,11 +69,11 @@ public:
 
 	int getDefaultNumberOfAgents() const { return num_of_agents; }
     const vector<int>* getDistances(int root_location);
+    string map_fname;
 
 private:
 	  // int moves_offset[MOVE_COUNT];
     vector<bool> my_map;
-    string map_fname;
     string agent_fname;
     unordered_map<int, vector<int>> distance_matrix;
 

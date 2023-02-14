@@ -114,6 +114,7 @@ void solvePPLiblinear(std::ofstream& ofs, std::ofstream& weights_ofs, Instance& 
     }
 
     vector<tuple<int, vector<int>, vector<set<int>>>> cost_ordering_dependency;
+    int fail_time = 0;
     for (int i = 0; i < pp_runs; i++)
     {
         //when training, use random restart on LH and SH
@@ -139,6 +140,9 @@ void solvePPLiblinear(std::ofstream& ofs, std::ofstream& weights_ofs, Instance& 
             }
             }
         }
+        if (sum_of_costs == MAX_COST) fail_time++;
+
+
         // int sum_of_costs = pp.run();   
         // sum_of_costs = pp.run();
 
@@ -150,6 +154,7 @@ void solvePPLiblinear(std::ofstream& ofs, std::ofstream& weights_ofs, Instance& 
         }
         pp.reset();
     }
+
 
     //------------------------get the top 5% solutions and print their dependency feature vectors for liblinear------------------------
     std::sort(cost_ordering_dependency.begin(), cost_ordering_dependency.end());
@@ -252,11 +257,221 @@ void solvePPLiblinear(std::ofstream& ofs, std::ofstream& weights_ofs, Instance& 
     LiblinearFeatures liblinear_features;
     liblinear_features.printFeaturesByDepPairOccurrence(all_norm_feature_vecs, manual_deppair_by_occ, ofs);//deppair_by_occurance
     liblinear_features.printWeightsByDepPairOccurrence(manual_deppair_by_occ, weights_ofs);//deppair_by_occurance
+    cout << "#Fail/All : " << fail_time << "/" << pp_runs << endl;
+    ofs << "#Fail/All : " << fail_time << "/" << pp_runs << endl;
     ofs.close();
     // stats_ofs.close();
 }
 
+
 void solvePPSVMRank(std::ofstream& ofs, Instance& instance, int pp_screen, vector<int>& pp_runs,
+                    int& scen, bool is_test, vector<double>& all_ml_overhead, vector<vector<int> >& SVM_Trained_orderings,
+                    vector<vector<double> >& all_costs, vector< vector < vector <double> > >& rrfirst_byproduct,
+                    int qid, int curr_learning_numagent,
+                    bool random_restart, bool fixedtime_restart,
+                    boost::optional<LiblinearAPI&> liblinear_api,
+                    boost::optional<SVMRankAPI&> svm_rank_api,
+                    boost::optional<vector<vector<double>>&> all_runtime,
+                    boost::optional<vector<vector<int>>&> all_failed_agent_idx,
+                    boost::optional<vector<vector<int>>&> all_restart_count,
+        //boost::optional<vector<vector<vector<double>>>&> rrfirst_byproduct,
+                    double restart_time_constraint)
+{
+    PP pp(instance, pp_screen);
+    pp.preprocess(true, true, true);
+    int num_agent = instance.num_of_agents;
+    if (curr_learning_numagent != -1) { //set up the SVMRank model to curr-learn on
+        vector<int> dummy_ordering(num_agent);
+        std::iota(dummy_ordering.begin(), dummy_ordering.end(), 0);
+        vector<vector<double>> all_orig_feature_vecs = getOriginalFeatureVectors(instance, pp, dummy_ordering);
+        vector<vector<double>> all_norm_feature_vecs = normalizeFeatureVectors(all_orig_feature_vecs);
+        svm_rank_api->setTestFeatures(all_norm_feature_vecs, dummy_ordering);
+        svm_rank_api->weightsDotProdFeatures(num_agent);
+    }
+
+    double total_runtime = 0;
+    int best_cost = MAX_COST;
+    double best_runtime;
+    vector<int> best_priority_ordering;
+    vector<set<int>> best_dependency_graph;
+    for (auto i: pp_runs)
+    {
+        int sum_of_costs = MAX_COST;
+        total_runtime = 0;
+        int failed_agent_id = -1;
+        int restart_counter = 0;
+        double ML_total_overheadsec = 0;
+
+        //these are for rr-best comparison analysis
+        int best_costs_self = MAX_COST; //best cost of the same method
+        int first_costs_self = MAX_COST; //first solution cost of the same method
+        double best_runtime_self = MAX_COST;//best runtime of the same method
+
+        if (!random_restart) {
+            // curr_learn to generate train data
+            if (!is_test && curr_learning_numagent != -1) {
+                computePPOrderingCurrLearning(i, instance, pp, scen, false, num_agent, boost::none, svm_rank_api);
+                sum_of_costs = pp.run();
+                total_runtime += pp.runtime;
+                if (i <= 10) {
+                    while (abs(sum_of_costs - MAX_COST) < 0.0001 && total_runtime <= 3) { //time constraint
+                        pp.reset();
+                        computePPOrderingCurrLearning(i, instance, pp, scen, false, num_agent, boost::none, svm_rank_api);
+                        best_costs_self = pp.run();
+                        total_runtime += pp.runtime;
+                    }
+                }
+            }
+                // deterministic testing
+            else {
+                computePPOrdering(i, pp, scen, is_test, SVM_Trained_orderings);
+                best_costs_self = pp.run();
+                total_runtime = pp.runtime;
+                // all_runtime.get()[i].push_back(total_runtime);
+            }
+        }
+        else {
+            // only want rr-first, not rr-best
+            if (!fixedtime_restart) {
+                while (abs(best_costs_self - MAX_COST) < 0.0001 && total_runtime <= restart_time_constraint) { //time constraint
+                    // cout<<"in while loop"<<endl;
+                    if (i == 2) {
+                        if (liblinear_api != boost::none) {
+                            //cout << "liblinear random restart" << endl;
+                            liblinear_api->randomRestart(scen, true); //false==bucket, true==softmax
+                            SVM_Trained_orderings[scen] = liblinear_api->orderings[scen];
+                        }
+                        else {
+                            //cout << "svmrank random restart" << endl;
+                            svm_rank_api->randomRestart(scen, true); //false==bucket, true==softmax
+                            SVM_Trained_orderings[scen] = svm_rank_api->orderings[scen];
+                        }
+                    }
+                    computePPOrdering(i, pp, scen, is_test, SVM_Trained_orderings, random_restart);
+                    pp.reset();
+                    failed_agent_id = -1;
+                    // cout<<"time left:"<<time_left<<endl;
+                    best_costs_self = pp.run(failed_agent_id, restart_time_constraint - total_runtime);
+                    store_failed_agent_idx(i, failed_agent_id, pp, all_failed_agent_idx);
+                    total_runtime += pp.runtime;
+                    restart_counter++;
+                }
+            }
+                // want rr-best
+                // TODO: extract rr-first from this process
+            else {
+                bool found_sol = false;
+                while (total_runtime <= restart_time_constraint) {
+                    if (i == 2) {
+                        clock_t start_overheadtime = clock();
+                        if (liblinear_api != boost::none) {
+                            liblinear_api->randomRestart(scen, true); //false==bucket, true==softmax
+                            SVM_Trained_orderings[scen] = liblinear_api->orderings[scen];
+                        }
+                        else {
+                            svm_rank_api->randomRestart(scen, true); //false==bucket, true==softmax
+                            SVM_Trained_orderings[scen] = svm_rank_api->orderings[scen];
+                        }
+                        ML_total_overheadsec += (double)(clock() - start_overheadtime) / CLOCKS_PER_SEC;
+                    }
+                    computePPOrdering(i, pp, scen, is_test, SVM_Trained_orderings, random_restart);
+                    pp.reset();
+                    failed_agent_id = -1;
+                    sum_of_costs = pp.run(failed_agent_id, restart_time_constraint - total_runtime);
+                    store_failed_agent_idx(i, failed_agent_id, pp, all_failed_agent_idx);
+                    store_failed_agent_idx(i, failed_agent_id, pp, rrfirst_byproduct[2]);
+                    total_runtime += pp.runtime;
+                    restart_counter++;
+                    if (sum_of_costs < best_costs_self) {
+                        best_costs_self = sum_of_costs;
+                        best_runtime_self = pp.runtime;
+                    }
+                    if (!found_sol && sum_of_costs != MAX_COST) { //first sol
+                        found_sol = true;
+                        first_costs_self = sum_of_costs;
+                        cout << "first solution cost = " << first_costs_self << endl;
+                        rrfirst_byproduct[1][i].push_back(total_runtime);
+                        rrfirst_byproduct[3][i].push_back(restart_counter);
+                    }
+                }
+                if (i == 2) {
+                    cout << "ML total overhead = " << ML_total_overheadsec << " sec" << endl;
+                    all_ml_overhead.push_back(ML_total_overheadsec/ (ML_total_overheadsec + total_runtime));
+                }
+                if(!found_sol){ //no sol within runtime limit
+                    rrfirst_byproduct[1][i].push_back(total_runtime);
+                    rrfirst_byproduct[3][i].push_back(restart_counter);
+                }
+            }
+            all_runtime.get()[i].push_back(total_runtime);
+            all_restart_count.get()[i].push_back(restart_counter);
+        }
+
+        // pp.printOrdering();
+        // pp.printDependencyGraph();
+        if (is_test) {
+            //normalize costs and store them into all_costs
+            //did not normalize MAX_COST(no solution)
+            int sum_of_start_goal_dist = computeSumStartGoalDist(instance);
+            if (best_costs_self < MAX_COST) {
+                //all_costs[i][scen] = sum_of_costs / (double)sum_of_start_goal_dist;
+                all_costs[i].push_back(best_costs_self / (double)sum_of_start_goal_dist);
+            }
+            else {
+                all_costs[i].push_back(best_costs_self);
+            }
+            if (first_costs_self < MAX_COST && fixedtime_restart) {
+                rrfirst_byproduct[0][i].push_back(first_costs_self / (double)sum_of_start_goal_dist);
+            }
+            else if (first_costs_self == MAX_COST && fixedtime_restart) {
+                rrfirst_byproduct[0][i].push_back(first_costs_self);
+            }
+        }
+        if (!random_restart && (curr_learning_numagent == -1 && !is_test)) {
+            cout << "Iteration " << i << "\t\t runtime = " << pp.runtime << " seconds.";
+            cout << " sum of costs = " << best_costs_self;
+        }
+        else {
+            cout << "Iteration " << i << "\t\t total runtime = " << total_runtime << " seconds.";
+            cout << " sum of costs = " << best_costs_self;
+        }
+        if (best_costs_self < best_cost)
+        {
+            cout << "\t\t -- Find a better solution with sum of costs = " << best_costs_self;
+            best_cost = best_costs_self;
+            best_runtime = best_runtime_self;
+            best_priority_ordering = pp.ordering; //this is buggy if using fixed time constraint
+            best_dependency_graph = pp.dependency_graph; //this is buggy if using fixed time constraint
+        }
+        cout << endl;
+        pp.reset();
+    }
+    if (best_cost < MAX_COST)
+    {
+        //std::ofstream ofs(out_fname, std::ios_base::app); //concatenate
+        cout << "#number of agents: " << best_priority_ordering.size() << endl;
+        cout << "#priority ordering: ";
+        for (int i : best_priority_ordering)
+            cout << i << " ";
+        cout << endl;
+        //printDependencyPairs(best_dependency_graph);
+        cout << "#Sum of costs = " << best_cost << endl;
+        cout << "#runtime = " << best_runtime << " seconds." << endl;
+
+        if (!is_test) {
+            genSVMRankRawFeatureFile(instance, pp, ofs,
+                                     best_priority_ordering, best_cost, best_runtime, qid);
+        }
+    }
+    else if (best_cost == MAX_COST && !is_test) {
+        /*cout << "scen " << scen << " no solution, running again" << endl;
+        scen -= 1;*/
+        //comment out this when generating custom agent file
+    }
+}
+
+
+void solvePPSVMRank_temp(std::ofstream& ofs, Instance& instance, int pp_screen, vector<int>& pp_runs,
     int& scen, bool is_test, vector<double>& all_ml_overhead, vector<vector<int> >& SVM_Trained_orderings,
     vector<vector<double> >& all_costs, vector< vector < vector <double> > >& rrfirst_byproduct,
     int qid, int curr_learning_numagent,
@@ -267,7 +482,7 @@ void solvePPSVMRank(std::ofstream& ofs, Instance& instance, int pp_screen, vecto
     boost::optional<vector<vector<int>>&> all_failed_agent_idx,
     boost::optional<vector<vector<int>>&> all_restart_count,
     //boost::optional<vector<vector<vector<double>>>&> rrfirst_byproduct,
-    double restart_time_constraint)
+    double restart_time_constraint, vector<int> priority)
 {
     PP pp(instance, pp_screen);
     pp.preprocess(true, true, true); 
@@ -317,6 +532,7 @@ void solvePPSVMRank(std::ofstream& ofs, Instance& instance, int pp_screen, vecto
             // deterministic testing
             else {
                 computePPOrdering(i, pp, scen, is_test, SVM_Trained_orderings);
+                pp.ordering = priority;
                 best_costs_self = pp.run();
                 total_runtime = pp.runtime;
                 // all_runtime.get()[i].push_back(total_runtime);
@@ -481,8 +697,8 @@ void solvePP(Instance& instance, int pp_screen, vector<int>& pp_runs,
 }
 
 void solvePP(std::ofstream& ofs, Instance& instance, int pp_screen,
-    int pp_runs, int& scen, bool is_test, int qid, int curr_learning_numagent,
-    boost::optional<SVMRankAPI&> svm_rank_api) {  //invoked by driver_train for SVMRank
+             int pp_runs, int& scen, bool is_test, int qid, int curr_learning_numagent,
+             boost::optional<SVMRankAPI&> svm_rank_api) {  //invoked by driver_train for SVMRank
     vector<vector<int> > SVM_Trained_orderings;
     vector<vector<double> > all_costs;
     vector<int> pp_runs_vec(pp_runs);
@@ -490,9 +706,25 @@ void solvePP(std::ofstream& ofs, Instance& instance, int pp_screen,
     vector<vector<vector<double>>> rrfirst_byproduct;
     vector<double> dummy_ml_overhead;
     return solvePPSVMRank(ofs, instance, pp_screen, pp_runs_vec, scen, is_test, dummy_ml_overhead, SVM_Trained_orderings,
+                               all_costs, rrfirst_byproduct, qid, curr_learning_numagent, false,false, boost::none, svm_rank_api, boost::none,
+                               boost::none, boost::none,
+                               5.0);
+}
+
+void solvePP_temp(std::ofstream& ofs, Instance& instance, int pp_screen,
+    int pp_runs, int& scen, bool is_test, int qid, int curr_learning_numagent,
+    boost::optional<SVMRankAPI&> svm_rank_api, vector<int> priority) {  //invoked by driver_train for SVMRank
+    vector<vector<int> > SVM_Trained_orderings;
+    vector<vector<double> > all_costs;
+    vector<int> pp_runs_vec(pp_runs);
+    std::iota (pp_runs_vec.begin(),pp_runs_vec.end(),0);
+    vector<vector<vector<double>>> rrfirst_byproduct;
+    vector<double> dummy_ml_overhead;
+    // TODO change back
+    return solvePPSVMRank_temp(ofs, instance, pp_screen, pp_runs_vec, scen, is_test, dummy_ml_overhead, SVM_Trained_orderings,
         all_costs, rrfirst_byproduct, qid, curr_learning_numagent, false,false, boost::none, svm_rank_api, boost::none,
         boost::none, boost::none,
-        5.0);
+        5.0, priority);
 }
 
 void solvePP(std::ofstream& ofs, std::ofstream& weights_ofs, Instance& instance, int pp_screen,
