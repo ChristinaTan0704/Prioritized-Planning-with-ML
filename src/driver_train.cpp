@@ -220,15 +220,16 @@ int main(int argc, char** argv)
 		// params for the input instance and experiment settings
 		("map,m", po::value<string>()->default_value("map/scen-even/warehouse-10-20-10-2-1.map"), "input file for map")
 		("agents,a", po::value<string>()->default_value("map/scen-random/warehouse-10-20-10-2-1-random-1.scen"), "input file for agents")
-		("agentNum,k", po::value<int>()->default_value(50), "number of agents")
+		("agentNum,k", po::value<int>()->default_value(200), "number of agents")
 		("screen,s", po::value<int>()->default_value(1), "screen option (0: none; 1: results; 2:all)")
         ("solver", po::value<string>()->default_value("PP"), "MAPF solver (EECBS, PP)")
         ("sid", po::value<int>()->default_value(1), "index of senario 1 ~ 25)")
-        ("insNum", po::value<int>()->default_value(1), "number of instance to be generated") // TODO change to 1000
-        ("ppRun", po::value<int>()->default_value(5), "number of runs to do PP") // TODO change to 100
+        ("insNum", po::value<int>()->default_value(5), "number of instance to be generated") // TODO change to 1000
+        ("ppRun", po::value<int>()->default_value(100), "number of runs to do PP") // TODO change to 100
 
         // ##### if only run the pp -- BEGIN ---
         ("onlyPP", po::value<bool>()->default_value(false), "only run PP or not")
+        ("manual_input", po::value<bool>()->default_value(true), "use manual input starts and ends")
         ("starts", po::value<string>()->default_value("5854 5319 809 8421 347 9740 8202 242 3623 2439 3037 9506 6088 9342 4155 7449 7232 8445 4642 4101 3205 8388 6085 9676 8871 391 7247 6063 4405 8953 2581 5522 8451 7347 8500 9450 7013 1659 5951 4096 795 7914 8481 5033 478 1688 7281 6392 796 8291"), "starts localtion, split by a space")
         ("ends", po::value<string>()->default_value("9952 5054 7027 7540 4676 5948 5453 2161 9816 1941 7422 4164 7431 1789 8152 3104 8989 7419 9392 7482 475 6692 4645 7004 1767 2620 5576 9328 1597 5633 9517 9008 8108 6463 8002 2207 2086 2877 8849 6478 327 642 3851 6276 8232 1439 7988 6255 7985 9923"), "ends localtion, split by a space")
         ("priority", po::value<string>()->default_value("41 1 48 8 42 33 45 23 38 17 44 25 47 7 35 43 10 16 3 14 29 46 9 22 4 34 27 11 5 39 20 32 13 21 37 28 24 18 2 49 31 15 40 30 26 12 36 6 0 19"), "priority of the agent, split by a space")
@@ -368,15 +369,15 @@ int main(int argc, char** argv)
 
         int pp_runs = vm["ppRun"].as<int>(); // number of runs for PP. Should be 100 for training data
         srand((int)time(0));
-        // TODO delete here later
-//        vector<int> starts = get_int_from_string( vm["starts"].as<string>());
-//        vector<int> ends = get_int_from_string( vm["ends"].as<string>());
-//        vector<int> priority = get_int_from_string( vm["priority"].as<string>());
-//        Instance instance;
-//        instance.init_pp_starts_ends(vm["map"].as<string>(), starts, ends);
+
         Instance instance(vm["map"].as<string>(), scenario_fname, first_agents, agentNum,
-            generate_agents, save_agents, num_of_rows, num_of_cols,
-            num_of_obstacles, warehouse_width);
+                          generate_agents, save_agents, num_of_rows, num_of_cols,
+                          num_of_obstacles, warehouse_width);
+        if (vm["manual_input"].as<bool>()) {
+            vector<int> starts = get_int_from_string(vm["starts"].as<string>());
+            vector<int> ends = get_int_from_string(vm["ends"].as<string>());
+            instance.init_pp_starts_ends(vm["map"].as<string>(), starts, ends);
+        }
 
         // solve the instance
         if (vm["solver"].as<string>() == "PP")

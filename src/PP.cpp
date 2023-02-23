@@ -62,6 +62,13 @@ int PP::run(int& failed_agent_id, double time_out_sec)
         agents[id].path = single_agent_planner.findOptimalPath(path_table,
             *agents[id].distance_to_goal, agents[id].start_location, time_out_sec);
 
+        if (screen == 2){
+            // //        cout << priority_pairs[i][1] << " " << priority_pairs[i][0]  << " ," ;
+            cout  << "Agent " << id << " : ";
+            for (auto i : agents[id].path) cout << i.location << "->";
+            cout << endl;
+        }
+
         if (time_out_sec < (double)(clock() - start_time) / CLOCKS_PER_SEC)
         {
             sum_of_costs = MAX_COST;
